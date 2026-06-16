@@ -4,11 +4,21 @@ import pandas as pd
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel, Field
 
+
+
 app = FastAPI(
     title="High-Throughput Fraud Detection API",
     description="Production endpoint for scoring real-time fraud probability.",
     version="1.0.0"
 )
+
+@app.get("/")
+def read_root():
+    return {
+        "message": "Financial Fraud Detection API is live!",
+        "documentation": "Append /docs to the URL to test endpoints."
+    }
+
 
 MODEL = None
 FEATURES = None
