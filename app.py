@@ -3,7 +3,7 @@ import joblib
 import pandas as pd
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel, Field
-
+from fastapi.responses import FileResponse
 
 
 app = FastAPI(
@@ -11,13 +11,6 @@ app = FastAPI(
     description="Production endpoint for scoring real-time fraud probability.",
     version="1.0.0"
 )
-
-@app.get("/")
-def read_root():
-    return {
-        "message": "Financial Fraud Detection API is live!",
-        "documentation": "Append /docs to the URL to test endpoints."
-    }
 
 
 MODEL = None
@@ -78,6 +71,11 @@ def predict_transaction(payload: TransactionInput):
         )
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"Inference error: {str(e)}")
+
+@app.get("/")
+def serve_ui():
+    return FileResponse("index.html")
+
 
 @app.get("/health")
 def health_check():
