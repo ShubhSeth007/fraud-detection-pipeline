@@ -1,0 +1,577 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>FraudShield — Real-Time Transaction Scoring</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: 'Segoe UI', system-ui, sans-serif;
+    background: #0f1117;
+    color: #e2e8f0;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+  }
+
+  header {
+    padding: 24px 40px;
+    border-bottom: 1px solid #1e2535;
+    display: flex;
+    align-items: center;
+    gap: 14px;
+  }
+  .logo {
+    width: 38px; height: 38px;
+    background: linear-gradient(135deg, #ef4444, #b91c1c);
+    border-radius: 10px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 20px;
+  }
+  header h1 { font-size: 22px; font-weight: 700; color: #f1f5f9; }
+  header p  { font-size: 13px; color: #64748b; margin-top: 2px; }
+  .badge {
+    margin-left: auto;
+    background: #1e2535;
+    border: 1px solid #2d3748;
+    border-radius: 20px;
+    padding: 5px 14px;
+    font-size: 12px;
+    color: #94a3b8;
+  }
+  .badge span { color: #22c55e; }
+
+  main {
+    display: grid;
+    grid-template-columns: 440px 1fr;
+    gap: 0;
+    flex: 1;
+  }
+
+  /* ── Left: Form ── */
+  .form-panel {
+    background: #0d1117;
+    border-right: 1px solid #1e2535;
+    padding: 28px 28px;
+    overflow-y: auto;
+  }
+
+  .section-label {
+    font-size: 11px; font-weight: 600;
+    letter-spacing: 0.08em; color: #475569;
+    text-transform: uppercase; margin-bottom: 14px;
+  }
+
+  .field-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+    margin-bottom: 16px;
+  }
+  .field-grid.single { grid-template-columns: 1fr; }
+
+  .field label {
+    display: block;
+    font-size: 11px;
+    color: #64748b;
+    margin-bottom: 5px;
+    font-weight: 500;
+  }
+  .field input {
+    width: 100%;
+    background: #111827;
+    border: 1px solid #1e2535;
+    border-radius: 8px;
+    padding: 9px 12px;
+    color: #e2e8f0;
+    font-size: 14px;
+    outline: none;
+    transition: border-color 0.2s;
+  }
+  .field input:focus { border-color: #3b82f6; }
+
+  .divider-line {
+    height: 1px;
+    background: #1e2535;
+    margin: 18px 0;
+  }
+
+  .btn-score {
+    width: 100%;
+    padding: 14px;
+    background: linear-gradient(135deg, #3b82f6, #2563eb);
+    color: white;
+    border: none;
+    border-radius: 10px;
+    font-size: 15px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: opacity 0.2s;
+    margin-top: 4px;
+  }
+  .btn-score:hover { opacity: 0.9; }
+  .btn-score:disabled { opacity: 0.4; cursor: not-allowed; }
+
+  .btn-sample {
+    width: 100%;
+    padding: 10px;
+    background: transparent;
+    color: #64748b;
+    border: 1px solid #1e2535;
+    border-radius: 10px;
+    font-size: 13px;
+    cursor: pointer;
+    margin-top: 10px;
+    transition: all 0.2s;
+  }
+  .btn-sample:hover { border-color: #3b82f6; color: #93c5fd; }
+
+  /* ── Right: Results ── */
+  .result-panel {
+    padding: 40px 44px;
+    display: flex;
+    flex-direction: column;
+    gap: 28px;
+    overflow-y: auto;
+  }
+
+  .empty-state {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 14px;
+    color: #334155;
+    text-align: center;
+    min-height: 400px;
+  }
+  .empty-state .big-icon { font-size: 56px; opacity: 0.4; }
+  .empty-state h2 { font-size: 20px; color: #475569; }
+  .empty-state p  { font-size: 14px; max-width: 340px; line-height: 1.6; }
+
+  /* Verdict card */
+  .verdict-card {
+    border-radius: 16px;
+    padding: 28px 32px;
+    display: flex;
+    align-items: center;
+    gap: 24px;
+    display: none;
+  }
+  .verdict-card.visible { display: flex; }
+  .verdict-card.approved {
+    background: linear-gradient(135deg, #052e16, #064e3b);
+    border: 1.5px solid #065f46;
+  }
+  .verdict-card.flagged {
+    background: linear-gradient(135deg, #450a0a, #7f1d1d);
+    border: 1.5px solid #991b1b;
+  }
+  .verdict-card.review {
+    background: linear-gradient(135deg, #1c1407, #451a03);
+    border: 1.5px solid #92400e;
+  }
+
+  .verdict-icon { font-size: 52px; }
+  .verdict-text h2 {
+    font-size: 26px;
+    font-weight: 800;
+    letter-spacing: 0.02em;
+  }
+  .verdict-card.approved .verdict-text h2 { color: #4ade80; }
+  .verdict-card.flagged  .verdict-text h2 { color: #f87171; }
+  .verdict-card.review   .verdict-text h2 { color: #fbbf24; }
+  .verdict-text p { font-size: 14px; color: #94a3b8; margin-top: 4px; }
+
+  /* Probability meter */
+  .meter-section { }
+  .meter-label {
+    display: flex; justify-content: space-between;
+    font-size: 13px; color: #64748b; margin-bottom: 10px;
+  }
+  .meter-label strong { color: #e2e8f0; font-size: 20px; }
+  .meter-track {
+    height: 12px;
+    background: #1e2535;
+    border-radius: 6px;
+    overflow: hidden;
+  }
+  .meter-fill {
+    height: 100%;
+    border-radius: 6px;
+    transition: width 0.8s ease;
+  }
+  .meter-fill.low    { background: linear-gradient(90deg, #22c55e, #4ade80); }
+  .meter-fill.medium { background: linear-gradient(90deg, #f59e0b, #fbbf24); }
+  .meter-fill.high   { background: linear-gradient(90deg, #ef4444, #f87171); }
+
+  .meter-ticks {
+    display: flex; justify-content: space-between;
+    font-size: 10px; color: #334155; margin-top: 5px;
+  }
+
+  /* Stats grid */
+  .stats-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 12px;
+  }
+  .stat-card {
+    background: #111827;
+    border: 1px solid #1e2535;
+    border-radius: 12px;
+    padding: 16px 18px;
+  }
+  .stat-card .s-label { font-size: 11px; color: #475569; margin-bottom: 6px; }
+  .stat-card .s-value { font-size: 22px; font-weight: 700; color: #f1f5f9; }
+  .stat-card .s-sub   { font-size: 11px; color: #334155; margin-top: 3px; }
+
+  /* History */
+  .history-section { }
+  .history-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 0;
+    border-bottom: 1px solid #0f1117;
+    font-size: 13px;
+  }
+  .h-pill {
+    padding: 3px 10px;
+    border-radius: 6px;
+    font-size: 11px;
+    font-weight: 600;
+  }
+  .h-pill.approved { background: #052e16; color: #4ade80; }
+  .h-pill.flagged  { background: #450a0a; color: #f87171; }
+  .h-amt  { color: #94a3b8; }
+  .h-prob { margin-left: auto; color: #475569; font-size: 12px; }
+
+  /* Loader */
+  .loader {
+    display: none;
+    align-items: center;
+    gap: 10px;
+    color: #475569;
+    font-size: 14px;
+  }
+  .loader.visible { display: flex; }
+  .spinner {
+    width: 20px; height: 20px;
+    border: 2px solid #1e2535;
+    border-top-color: #3b82f6;
+    border-radius: 50%;
+    animation: spin 0.7s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  ::-webkit-scrollbar { width: 6px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: #1e2535; border-radius: 3px; }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">🛡</div>
+  <div>
+    <h1>FraudShield</h1>
+    <p>Real-time transaction fraud scoring — powered by XGBoost + MLOps</p>
+  </div>
+  <div class="badge"><span>●</span> Live Model</div>
+</header>
+
+<main>
+  <!-- Left: Form -->
+  <div class="form-panel">
+    <div class="section-label">Transaction Details</div>
+
+    <div class="field-grid">
+      <div class="field">
+        <label>Transaction Amount ($)</label>
+        <input type="number" id="TransactionAmt" value="150.50" step="0.01"/>
+      </div>
+      <div class="field">
+        <label>Transaction Hour (0–23)</label>
+        <input type="number" id="TransactionHour" value="14" min="0" max="23"/>
+      </div>
+    </div>
+
+    <div class="divider-line"></div>
+    <div class="section-label">Card Information</div>
+
+    <div class="field-grid">
+      <div class="field">
+        <label>Card 1</label>
+        <input type="number" id="card1" value="1234"/>
+      </div>
+      <div class="field">
+        <label>Card 2</label>
+        <input type="number" id="card2" value="567"/>
+      </div>
+      <div class="field">
+        <label>Address (addr1)</label>
+        <input type="number" id="addr1" value="89"/>
+      </div>
+      <div class="field">
+        <label>Distance (dist1)</label>
+        <input type="number" id="dist1" value="12.5"/>
+      </div>
+    </div>
+
+    <div class="divider-line"></div>
+    <div class="section-label">Behavioural Features</div>
+
+    <div class="field-grid">
+      <div class="field">
+        <label>Amt / Mean Card1</label>
+        <input type="number" id="TransactionAmt_to_mean_card1" value="1.12" step="0.01"/>
+      </div>
+      <div class="field">
+        <label>Amt / Std Card1</label>
+        <input type="number" id="TransactionAmt_to_std_card1" value="0.45" step="0.01"/>
+      </div>
+      <div class="field-grid single" style="grid-column:span 2">
+        <div class="field">
+          <label>Time Delta Card1 (seconds)</label>
+          <input type="number" id="time_delta_card1" value="360"/>
+        </div>
+      </div>
+    </div>
+
+    <div class="divider-line"></div>
+    <div class="section-label">Count Features (C1–C10)</div>
+
+    <div class="field-grid">
+      <div class="field"><label>C1</label><input type="number" id="C1" value="1"/></div>
+      <div class="field"><label>C2</label><input type="number" id="C2" value="2"/></div>
+      <div class="field"><label>C3</label><input type="number" id="C3" value="0"/></div>
+      <div class="field"><label>C4</label><input type="number" id="C4" value="0"/></div>
+      <div class="field"><label>C5</label><input type="number" id="C5" value="1"/></div>
+      <div class="field"><label>C6</label><input type="number" id="C6" value="1"/></div>
+      <div class="field"><label>C7</label><input type="number" id="C7" value="0"/></div>
+      <div class="field"><label>C8</label><input type="number" id="C8" value="0"/></div>
+      <div class="field"><label>C9</label><input type="number" id="C9" value="1"/></div>
+      <div class="field"><label>C10</label><input type="number" id="C10" value="0"/></div>
+    </div>
+
+    <button class="btn-score" id="scoreBtn" onclick="scoreTransaction()">
+      ⚡ Score Transaction
+    </button>
+    <button class="btn-sample" onclick="loadSuspicious()">
+      Load suspicious transaction example
+    </button>
+  </div>
+
+  <!-- Right: Results -->
+  <div class="result-panel" id="resultPanel">
+
+    <div class="empty-state" id="emptyState">
+      <div class="big-icon">🔍</div>
+      <h2>Ready to Score</h2>
+      <p>Fill in the transaction details on the left and click "Score Transaction" to get a real-time fraud risk assessment from the live XGBoost model.</p>
+    </div>
+
+    <div class="loader" id="loader">
+      <div class="spinner"></div>
+      Scoring transaction against live model…
+    </div>
+
+    <div class="verdict-card" id="verdictCard">
+      <div class="verdict-icon" id="verdictIcon"></div>
+      <div class="verdict-text">
+        <h2 id="verdictText"></h2>
+        <p id="verdictSub"></p>
+      </div>
+    </div>
+
+    <div id="meterSection" style="display:none">
+      <div class="section-label">Fraud Probability</div>
+      <div class="meter-label">
+        <span>Low risk</span>
+        <strong id="probPct">—</strong>
+        <span>High risk</span>
+      </div>
+      <div class="meter-track">
+        <div class="meter-fill" id="meterFill" style="width:0%"></div>
+      </div>
+      <div class="meter-ticks">
+        <span>0%</span><span>25%</span><span>50%</span><span>75%</span><span>100%</span>
+      </div>
+    </div>
+
+    <div id="statsSection" style="display:none">
+      <div class="stats-grid">
+        <div class="stat-card">
+          <div class="s-label">Fraud Probability</div>
+          <div class="s-value" id="statProb">—</div>
+          <div class="s-sub">Raw model score</div>
+        </div>
+        <div class="stat-card">
+          <div class="s-label">Decision Threshold</div>
+          <div class="s-value" id="statThreshold">—</div>
+          <div class="s-sub">Configurable via API</div>
+        </div>
+        <div class="stat-card">
+          <div class="s-label">Latency</div>
+          <div class="s-value" id="statLatency">—</div>
+          <div class="s-sub">Model inference time</div>
+        </div>
+      </div>
+    </div>
+
+    <div id="historySection" style="display:none">
+      <div class="section-label">Recent Transactions</div>
+      <div id="historyList"></div>
+    </div>
+
+  </div>
+</main>
+
+<script>
+const API = 'https://fraud-detection-api-wxa6.onrender.com';
+const history = [];
+
+function getPayload() {
+  return {
+    TransactionAmt:               parseFloat(document.getElementById('TransactionAmt').value),
+    card1:                        parseFloat(document.getElementById('card1').value),
+    card2:                        parseFloat(document.getElementById('card2').value),
+    addr1:                        parseFloat(document.getElementById('addr1').value),
+    dist1:                        parseFloat(document.getElementById('dist1').value),
+    C1:  parseFloat(document.getElementById('C1').value),
+    C2:  parseFloat(document.getElementById('C2').value),
+    C3:  parseFloat(document.getElementById('C3').value),
+    C4:  parseFloat(document.getElementById('C4').value),
+    C5:  parseFloat(document.getElementById('C5').value),
+    C6:  parseFloat(document.getElementById('C6').value),
+    C7:  parseFloat(document.getElementById('C7').value),
+    C8:  parseFloat(document.getElementById('C8').value),
+    C9:  parseFloat(document.getElementById('C9').value),
+    C10: parseFloat(document.getElementById('C10').value),
+    TransactionHour:              parseInt(document.getElementById('TransactionHour').value),
+    TransactionAmt_to_mean_card1: parseFloat(document.getElementById('TransactionAmt_to_mean_card1').value),
+    TransactionAmt_to_std_card1:  parseFloat(document.getElementById('TransactionAmt_to_std_card1').value),
+    time_delta_card1:             parseFloat(document.getElementById('time_delta_card1').value),
+  };
+}
+
+function loadSuspicious() {
+  document.getElementById('TransactionAmt').value = 4200;
+  document.getElementById('TransactionHour').value = 3;
+  document.getElementById('card1').value = 9999;
+  document.getElementById('card2').value = 150;
+  document.getElementById('addr1').value = 12;
+  document.getElementById('dist1').value = 980;
+  document.getElementById('TransactionAmt_to_mean_card1').value = 8.5;
+  document.getElementById('TransactionAmt_to_std_card1').value = 4.2;
+  document.getElementById('time_delta_card1').value = 30;
+  document.getElementById('C1').value = 5;
+  document.getElementById('C2').value = 8;
+  document.getElementById('C3').value = 3;
+  document.getElementById('C4').value = 2;
+  document.getElementById('C5').value = 4;
+  document.getElementById('C6').value = 6;
+  document.getElementById('C7').value = 1;
+  document.getElementById('C8').value = 2;
+  document.getElementById('C9').value = 3;
+  document.getElementById('C10').value = 1;
+}
+
+async function scoreTransaction() {
+  document.getElementById('emptyState')?.remove();
+  document.getElementById('loader').classList.add('visible');
+  document.getElementById('verdictCard').classList.remove('visible', 'approved', 'flagged', 'review');
+  document.getElementById('meterSection').style.display = 'none';
+  document.getElementById('statsSection').style.display = 'none';
+  document.getElementById('scoreBtn').disabled = true;
+
+  try {
+    const res  = await fetch(`${API}/predict`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(getPayload())
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.detail || 'Request failed');
+
+    document.getElementById('loader').classList.remove('visible');
+    showResult(data);
+    addHistory(data);
+
+  } catch (err) {
+    document.getElementById('loader').classList.remove('visible');
+    const card = document.getElementById('verdictCard');
+    card.className = 'verdict-card review visible';
+    document.getElementById('verdictIcon').textContent = '⚠️';
+    document.getElementById('verdictText').textContent = 'API Error';
+    document.getElementById('verdictSub').textContent = err.message;
+    card.style.display = 'flex';
+  }
+
+  document.getElementById('scoreBtn').disabled = false;
+}
+
+function showResult(data) {
+  const prob    = data.fraud_probability;
+  const status  = data.status;
+  const card    = document.getElementById('verdictCard');
+  const pct     = (prob * 100).toFixed(2);
+
+  // Verdict
+  let cls, icon, text, sub;
+  if (status === 'APPROVED') {
+    cls  = 'approved'; icon = '✅';
+    text = 'APPROVED';
+    sub  = `Low fraud risk — transaction cleared (${pct}% probability)`;
+  } else {
+    cls  = 'flagged';  icon = '🚨';
+    text = 'FLAGGED FOR REVIEW';
+    sub  = `High fraud risk — transaction held for human triage (${pct}% probability)`;
+  }
+
+  card.className = `verdict-card ${cls} visible`;
+  document.getElementById('verdictIcon').textContent = icon;
+  document.getElementById('verdictText').textContent = text;
+  document.getElementById('verdictSub').textContent  = sub;
+
+  // Meter
+  const fillEl = document.getElementById('meterFill');
+  const fillCls = prob < 0.3 ? 'low' : prob < 0.6 ? 'medium' : 'high';
+  fillEl.className = `meter-fill ${fillCls}`;
+  setTimeout(() => { fillEl.style.width = `${Math.min(prob * 100, 100)}%`; }, 50);
+  document.getElementById('probPct').textContent = `${pct}%`;
+  document.getElementById('meterSection').style.display = 'block';
+
+  // Stats
+  document.getElementById('statProb').textContent      = pct + '%';
+  document.getElementById('statThreshold').textContent = (data.threshold_used ?? 0.5) * 100 + '%';
+  document.getElementById('statLatency').textContent   = (data.latency_ms ?? '—') + 'ms';
+  document.getElementById('statsSection').style.display = 'block';
+}
+
+function addHistory(data) {
+  const amt    = document.getElementById('TransactionAmt').value;
+  const status = data.status === 'APPROVED' ? 'approved' : 'flagged';
+  const pct    = (data.fraud_probability * 100).toFixed(1);
+
+  history.unshift({ amt, status, pct });
+  if (history.length > 6) history.pop();
+
+  const listEl = document.getElementById('historyList');
+  listEl.innerHTML = history.map(h => `
+    <div class="history-row">
+      <div class="h-pill ${h.status}">${h.status === 'approved' ? '✓ Approved' : '✗ Flagged'}</div>
+      <div class="h-amt">$${parseFloat(h.amt).toFixed(2)}</div>
+      <div class="h-prob">${h.pct}% fraud risk</div>
+    </div>
+  `).join('');
+
+  document.getElementById('historySection').style.display = 'block';
+}
+</script>
+</body>
+</html>
