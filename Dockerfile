@@ -15,7 +15,7 @@ RUN pip install --no-cache-dir --upgrade pip && \
 COPY app.py .
 COPY fraud_model.joblib .
 COPY feature_columns.joblib .
-
+COPY index.html .
 # Expose port 10000 to match Render's web-service infrastructure standards
 EXPOSE 10000
 
